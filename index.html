@@ -78,13 +78,13 @@ async function go(n){
  // Force initial style to be committed before the cross-dissolve starts.
  void neu.offsetWidth;
  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-   neu.style.transition='opacity 1.25s ease-in-out,transform 1.25s cubic-bezier(.2,.65,.25,1)';
+   neu.style.transition='opacity .4s ease-in-out,transform .4s cubic-bezier(.2,.65,.25,1)';
    neu.style.opacity='1';neu.style.transform='translateX(0%) scale(1.09)';
  }));
  swap=!swap;stage=n;pan=0;travel=0;if(n===6)roomDepth=0;
  // draw() must not override the transition until it finishes.
  draw();
- setTimeout(()=>{if(serial!==transitionSerial)return;old.style.opacity='0';old.style.zIndex='0';neu.style.zIndex='1';locked=false;draw()},1300);
+ setTimeout(()=>{if(serial!==transitionSerial)return;old.style.opacity='0';old.style.zIndex='0';neu.style.zIndex='1';locked=false;draw()},450);
 }
 
 document.getElementById('back').onclick=()=>{holding=false;if(stage>0)go(stage-1)};
