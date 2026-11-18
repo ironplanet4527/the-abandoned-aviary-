@@ -54,7 +54,39 @@ const scenes=['street0.jpg','street1.jpg','street2.jpg','street3.jpg','street4.j
 {name:'Nicobar pigeon',sprite:'pigeon.png',photo:'IMG_8985.jpeg',desc:'About 40 cm long. This ground-foraging pigeon moves across the concrete with a low posture, showing copper-green iridescence.',clips:['IMG_8986.mp4','IMG_8984.mp4'],x:21,y:76,w:30,kind:'ground'},
 {name:'American avocets',sprite:'avocets.png',photo:'IMG_8981.jpeg',desc:'Two long-legged shorebirds, each roughly 43–47 cm long. Their slender upturned bills are adapted for sweeping through shallow water.',clips:['IMG_8982.mp4'],x:72,y:75,w:43,kind:'ground'}];function setBackground(el,n){el.style.backgroundImage=`url('${scenes[n]}')`}setBackground(a,0);function draw(){world.classList.toggle('reference-room',stage===6);document.getElementById('step').textContent=labels[stage];document.getElementById('fill').style.width=(stage/6*100)+'%';document.getElementById('back').disabled=stage===0;document.getElementById('back').style.opacity=stage===0?.45:1;document.getElementById('hint').textContent='';document.getElementById('touchcue').textContent=stage===6?'HOLD TO APPROACH · BACK AWAY TO ZOOM OUT · TOUCH A BIRD':'HOLD TO EXPLORE';document.getElementById('backaway').disabled=false;world.style.setProperty('--room-zoom',(1+roomDepth*.38).toFixed(4));document.getElementById('count').textContent=stage===6?`${seen.size} / 4 ENCOUNTERS`:'';birds.style.display=stage===6?'block':'none';const target=swap?b:a;if(!holding&&!locked){target.style.transition='transform .35s ease';target.style.transform=stage===6?'none':`translateX(${pan*16}%) scale(${1.08+travel*.19})`;}birds.style.transform='none';document.getElementById('scene-light').style.display=stage===6?'block':'none';}
 let backingAway=false;let roomDepth=0,travel=0,holding=false,lastFrame=0,dragX=0,dragY=0,downX=0,downY=0,dragging=false,gestureActive=false;const world=document.getElementById('world');
-function go(n){if(locked)return;locked=true;const old=swap?b:a,neu=swap?a:b;setBackground(neu,n);neu.style.transition='none';neu.style.opacity=0;neu.style.transform=`translateX(${pan*16}%) scale(1.0)`;old.style.transition='opacity .9s ease,transform .95s cubic-bezier(.18,.7,.18,1)';requestAnimationFrame(()=>requestAnimationFrame(()=>{neu.style.transition='opacity .9s ease,transform .95s cubic-bezier(.18,.7,.18,1)';neu.style.opacity=1;neu.style.transform=`translateX(${pan*16}%) scale(1.09)`;old.style.opacity=0;old.style.transform=`translateX(${pan*16}%) scale(1.28)`}));swap=!swap;stage=n;pan=0;travel=0;if(n===6)roomDepth=0;setTimeout(()=>{locked=false;draw()},950);draw()}
+// Keep every street photograph ready before it is needed, avoiding dark loading frames.
+const scenePreloads=scenes.map(src=>{const img=new Image();img.decoding='async';img.src=src;return img});
+let transitionSerial=0;
+async function go(n){
+ if(locked||n<0||n>=scenes.length)return;
+ locked=true;
+ const serial=++transitionSerial;
+ const old=swap?b:a,neu=swap?a:b;
+ // Never hide the current photograph while the next photograph is loading.
+ const preload=scenePreloads[n];
+ if(!preload.complete||!preload.naturalWidth){
+   try{await new Promise((resolve,reject)=>{if(preload.complete&&preload.naturalWidth)return resolve();preload.addEventListener('load',resolve,{once:true});preload.addEventListener('error',reject,{once:true})})}
+   catch(e){locked=false;return}
+ }
+ if(serial!==transitionSerial)return;
+ setBackground(neu,n);
+ // Layer the next photograph above the old one. Never fade the old image to black.
+ old.style.zIndex='0';neu.style.zIndex='1';
+ old.style.transition='none';old.style.opacity='1';
+ neu.style.transition='none';neu.style.opacity='0';
+ neu.style.transform=`translateX(${pan*9}%) scale(1.025)`;
+ // Force initial style to be committed before the cross-dissolve starts.
+ void neu.offsetWidth;
+ requestAnimationFrame(()=>requestAnimationFrame(()=>{
+   neu.style.transition='opacity 1.25s ease-in-out,transform 1.25s cubic-bezier(.2,.65,.25,1)';
+   neu.style.opacity='1';neu.style.transform='translateX(0%) scale(1.09)';
+ }));
+ swap=!swap;stage=n;pan=0;travel=0;if(n===6)roomDepth=0;
+ // draw() must not override the transition until it finishes.
+ draw();
+ setTimeout(()=>{if(serial!==transitionSerial)return;old.style.opacity='0';old.style.zIndex='0';neu.style.zIndex='1';locked=false;draw()},1300);
+}
+
 document.getElementById('back').onclick=()=>{holding=false;if(stage>0)go(stage-1)};
 function advance(t){if(!lastFrame)lastFrame=t;let dt=Math.min(50,t-lastFrame);lastFrame=t;if(holding&&!locked&&stage===6){roomDepth=Math.min(1,roomDepth+dt/4500);draw()}if(backingAway&&stage===6){roomDepth=Math.max(0,roomDepth-dt/2000);draw()}if(holding&&!locked&&stage<6){travel+=dt/1250;let target=swap?b:a;target.style.transition='none';target.style.transform=stage===6?'none':`translateX(${pan*16}%) scale(${1.08+travel*.19})`;if(travel>=1)go(stage+1)}requestAnimationFrame(advance)}requestAnimationFrame(advance);
 const backaway=document.getElementById('backaway');backaway.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();holding=false;backingAway=true;backaway.setPointerCapture(e.pointerId)});backaway.addEventListener('pointerup',e=>{e.preventDefault();e.stopPropagation();backingAway=false;roomDepth=Math.max(0,roomDepth-.16);draw()});backaway.addEventListener('pointercancel',()=>{backingAway=false});backaway.addEventListener('lostpointercapture',()=>{backingAway=false});
